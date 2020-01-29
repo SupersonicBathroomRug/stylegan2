@@ -17,12 +17,12 @@ class Projector:
     def __init__(self):
         self.num_steps                  = 300 # was 1000
         self.dlatent_avg_samples        = 10000
-        self.initial_learning_rate      = 0.1 # was 0.1 then 0.01
+        self.initial_learning_rate      = 0.01 # was 0.1
         self.initial_noise_factor       = 0.05
         self.lr_rampdown_length         = 0.25
         self.lr_rampup_length           = 0.05
         self.noise_ramp_length          = 0.75
-        self.regularize_noise_weight    = 0 # was 1e5
+        self.regularize_noise_weight    = 1e5 # was 1e5, 1e4 makes sense, too
         self.verbose                    = False
         self.clone_net                  = True
 
@@ -113,7 +113,6 @@ class Projector:
         self._loss = tf.reduce_sum(self._dist)
         '''
         if self._celeba_classifier is None:
-            print(">>>", proc_images_expr.shape)
             from lucid.modelzoo.vision_base import Model
 
             MODEL_PATH = '200.pb'
@@ -126,15 +125,19 @@ class Projector:
 
             network = FrozenNetwork()
             network.load_graphdef()
-            ins = str(np.random.randint(10000))
             # proc_images_expr.shape = (1, 3, 256, 256), range = (0, 255)
             # input_image.shape = (1, 256, 256, 3), range = (0, 1)
             input_image = tf.transpose(proc_images_expr, perm=(0, 2, 3, 1)) / 255
+
+            # TODO memory leak
+            ins = str(np.random.randint(10000))
             network.import_graph(t_input=input_image, scope=ins)
+
+            layer_name, neuron_index = "Mixed_5c_Branch_3_b_1x1_act/Relu", 16
+
             g = tf.get_default_graph()
-            layer_name = "Mixed_5c_Branch_3_b_1x1_act/Relu"
             layer = g.get_tensor_by_name(ins + "/" + layer_name + ":0")
-            neuron = layer[:, :, :, 16]
+            neuron = layer[:, :, :, neuron_index]
             # reduce_max would make sense too.
             mean_activation = tf.reduce_mean(neuron, axis=(1, 2))
             self._loss = - mean_activation
