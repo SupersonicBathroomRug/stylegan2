@@ -51,7 +51,7 @@ class Projector:
         if self.verbose:
             print('Projector:', *args)
 
-    def set_network(self, Gs, minibatch_size=1):
+    def set_network(self, Gs, layer_name, neuron_index, minibatch_size=1):
         assert minibatch_size == 1
         self._Gs = Gs
         self._minibatch_size = minibatch_size
@@ -133,8 +133,7 @@ class Projector:
             ins = str(np.random.randint(10000))
             network.import_graph(t_input=input_image, scope=ins)
 
-            layer_name, neuron_index = "Mixed_5c_Branch_3_b_1x1_act/Relu", 16
-
+            # layer_name, neuron_index = "Mixed_5c_Branch_3_b_1x1_act/Relu", 16
             g = tf.get_default_graph()
             layer = g.get_tensor_by_name(ins + "/" + layer_name + ":0")
             neuron = layer[:, :, :, neuron_index]
