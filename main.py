@@ -238,16 +238,15 @@ dataset_tool.create_from_images("./projection/records/", "./projection/imgs/", T
 # Run the projector
 import run_projector
 import projector
+import dream_projector
 
 import importlib
-importlib.reload(projector)
+importlib.reload(dream_projector)
 
 import training.dataset
 import training.misc
 import os 
 
-
-layer_name, neuron_index = "Mixed_5c_Branch_3_b_1x1_act/Relu", 16
 
 
 def project_real_images(dataset_name, data_dir, num_images, num_snapshots):
@@ -264,7 +263,19 @@ def project_real_images(dataset_name, data_dir, num_images, num_snapshots):
         images = training.misc.adjust_dynamic_range(images, [0, 255], [-1, 1])
         run_projector.project_image(proj, targets=images, png_prefix=dnnlib.make_run_dir_path('projection/out/image%04d-' % image_idx), num_snapshots=num_snapshots)
 
-project_real_images("records","./projection",1,100)
+
+def dream_project(Gs, network_protobuf_path, layer_name, neuron_index, png_prefix, num_snapshots):
+    proj = dream_projector.DreamProjector()
+    proj.set_network(Gs, network_protobuf_path, layer_name, neuron_index)
+    run_projector.dream_project(proj, png_prefix, num_snapshots)
+
+
+# project_real_images("records","./projection", 1, 100)
+
+network_protobuf_path = "200.pb"
+layer_name, neuron_index = "Mixed_5c_Branch_3_b_1x1_act/Relu", 16
+
+dream_project(Gs, network_protobuf_path, layer_name, neuron_index, png_prefix='projection/out/image-', num_snapshots=100)
 
 
 # Create video 
@@ -272,10 +283,6 @@ project_real_images("records","./projection",1,100)
 import glob
 
 imgs = sorted(glob.glob("projection/out/*step*.png"))
-
-target_imgs = sorted(glob.glob("projection/out/*target*.png"))
-assert len(target_imgs) == 1, "More than one target found?"
-target_img = imageio.imread(target_imgs[0])
 
 movieName = "projection/movie.mp4"
 with imageio.get_writer(movieName, mode='I') as writer:
@@ -285,7 +292,6 @@ with imageio.get_writer(movieName, mode='I') as writer:
         # Concatenate images with original target image
         w,h = image.shape[0:2]
         canvas = PIL.Image.new('RGBA', (w,h), 'white')
-        # canvas.paste(Image.fromarray(target_img), (w, 0))
         canvas.paste(Image.fromarray(image), (0, 0))
 
         writer.append_data(np.array(canvas))
@@ -298,10 +304,9 @@ import lucid.optvis.param as param
 
 from lucid.modelzoo.vision_base import Model
 
-MODEL_PATH = '200.pb'
 
 class FrozenNetwork(Model):
-    model_path = MODEL_PATH
+    model_path = network_protobuf_path
     image_shape = [256, 256, 3]
     image_value_range = (0, 1)
     input_name = 'input_1'

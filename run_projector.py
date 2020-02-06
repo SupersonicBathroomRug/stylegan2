@@ -31,6 +31,18 @@ def project_image(proj, targets, png_prefix, num_snapshots):
 
 #----------------------------------------------------------------------------
 
+def dream_project(proj, png_prefix, num_snapshots):
+    snapshot_steps = set(proj.num_steps - np.linspace(0, proj.num_steps, num_snapshots, endpoint=False, dtype=int))
+    proj.start()
+    while proj.get_cur_step() < proj.num_steps:
+        print('\r%d / %d ... ' % (proj.get_cur_step(), proj.num_steps), end='', flush=True)
+        proj.step()
+        if proj.get_cur_step() in snapshot_steps:
+            misc.save_image_grid(proj.get_images(), png_prefix + 'step%04d.png' % proj.get_cur_step(), drange=[-1,1])
+    print('\r%-30s\r' % '', end='', flush=True)
+
+#----------------------------------------------------------------------------
+
 def project_generated_images(network_pkl, seeds, num_snapshots, truncation_psi):
     print('Loading networks from "%s"...' % network_pkl)
     _G, _D, Gs = pretrained_networks.load_networks(network_pkl)

@@ -13,16 +13,16 @@ from training import misc
 
 #----------------------------------------------------------------------------
 
-class Projector:
+class DreamProjector:
     def __init__(self):
-        self.num_steps                  = 1000
+        self.num_steps                  = 300 # was 1000
         self.dlatent_avg_samples        = 10000
-        self.initial_learning_rate      = 0.1
+        self.initial_learning_rate      = 0.01 # was 0.1
         self.initial_noise_factor       = 0.05
         self.lr_rampdown_length         = 0.25
         self.lr_rampup_length           = 0.05
         self.noise_ramp_length          = 0.75
-        self.regularize_noise_weight    = 1e5
+        self.regularize_noise_weight    = 1e5 # was 1e5, 1e4 makes sense, too
         self.verbose                    = False
         self.clone_net                  = True
 
@@ -37,8 +37,6 @@ class Projector:
         self._noise_in              = None
         self._dlatents_expr         = None
         self._images_expr           = None
-        self._target_images_var     = None
-        self._lpips                 = None
         self._dist                  = None
         self._loss                  = None
         self._reg_sizes             = None
@@ -46,15 +44,15 @@ class Projector:
         self._opt                   = None
         self._opt_step              = None
         self._cur_step              = None
+        self._celeba_classifier     = None
 
     def _info(self, *args):
         if self.verbose:
             print('Projector:', *args)
 
-    def set_network(self, Gs, minibatch_size=1):
-        assert minibatch_size == 1
+    def set_network(self, Gs, network_protobuf_path, layer_name, neuron_index):
+        self._minibatch_size = 1
         self._Gs = Gs
-        self._minibatch_size = minibatch_size
         if self._Gs is None:
             return
         if self.clone_net:
@@ -104,11 +102,34 @@ class Projector:
 
         # Loss graph.
         self._info('Building loss graph...')
-        self._target_images_var = tf.Variable(tf.zeros(proc_images_expr.shape), name='target_images_var')
-        if self._lpips is None:
-            self._lpips = misc.load_pkl('http://d36zk2xti64re0.cloudfront.net/stylegan1/networks/metrics/vgg16_zhang_perceptual.pkl')
-        self._dist = self._lpips.get_output_for(proc_images_expr, self._target_images_var)
-        self._loss = tf.reduce_sum(self._dist)
+
+        if self._celeba_classifier is None:
+            from lucid.modelzoo.vision_base import Model
+
+            class FrozenNetwork(Model):
+                model_path = network_protobuf_path
+                image_shape = [256, 256, 3]
+                image_value_range = (0, 1)
+                input_name = 'input_1'
+
+            network = FrozenNetwork()
+            network.load_graphdef()
+            # proc_images_expr.shape = (1, 3, 256, 256), range = (0, 255)
+            # input_image.shape = (1, 256, 256, 3), range = (0, 1)
+            input_image = tf.transpose(proc_images_expr, perm=(0, 2, 3, 1)) / 255
+
+            # TODO memory leak
+            ins = str(np.random.randint(10000))
+            network.import_graph(t_input=input_image, scope=ins)
+
+            # layer_name, neuron_index = "Mixed_5c_Branch_3_b_1x1_act/Relu", 16
+            g = tf.get_default_graph()
+            layer = g.get_tensor_by_name(ins + "/" + layer_name + ":0")
+            neuron = layer[:, :, :, neuron_index]
+            # reduce_max would make sense too.
+            mean_activation = tf.reduce_mean(neuron, axis=(1, 2))
+            self._loss = - mean_activation
+            self._dist = self._loss
 
         # Noise regularization graph.
         self._info('Building noise regularization graph...')
@@ -131,9 +152,9 @@ class Projector:
         self._opt.register_gradients(self._loss, [self._dlatents_var] + self._noise_vars)
         self._opt_step = self._opt.apply_updates()
 
-    def run(self, target_images):
+    def run(self):
         # Run to completion.
-        self.start(target_images)
+        self.start()
         while self._cur_step < self.num_steps:
             self.step()
 
@@ -144,22 +165,12 @@ class Projector:
         pres.images = self.get_images()
         return pres
 
-    def start(self, target_images):
+    def start(self):
         assert self._Gs is not None
-
-        # Prepare target images.
-        self._info('Preparing target images...')
-        target_images = np.asarray(target_images, dtype='float32')
-        target_images = (target_images + 1) * (255 / 2)
-        sh = target_images.shape
-        assert sh[0] == self._minibatch_size
-        if sh[2] > self._target_images_var.shape[2]:
-            factor = sh[2] // self._target_images_var.shape[2]
-            target_images = np.reshape(target_images, [-1, sh[1], sh[2] // factor, factor, sh[3] // factor, factor]).mean((3, 5))
 
         # Initialize optimization state.
         self._info('Initializing optimization state...')
-        tflib.set_vars({self._target_images_var: target_images, self._dlatents_var: np.tile(self._dlatent_avg, [self._minibatch_size, 1, 1])})
+        tflib.set_vars({self._dlatents_var: np.tile(self._dlatent_avg, [self._minibatch_size, 1, 1])})
         tflib.run(self._noise_init_op)
         self._opt.reset_optimizer_state()
         self._cur_step = 0
