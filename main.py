@@ -246,9 +246,13 @@ import training.dataset
 import training.misc
 import os 
 
+
+layer_name, neuron_index = "Mixed_5c_Branch_3_b_1x1_act/Relu", 16
+
+
 def project_real_images(dataset_name, data_dir, num_images, num_snapshots):
     proj = projector.Projector()
-    proj.set_network(Gs)
+    proj.set_network(Gs, layer_name, neuron_index)
 
     print('Loading images from "%s"...' % dataset_name)
     dataset_obj = training.dataset.load_dataset(data_dir=data_dir, tfrecord_dir=dataset_name, max_label_size=0, verbose=True, repeat=False, shuffle_mb=0)
@@ -261,7 +265,6 @@ def project_real_images(dataset_name, data_dir, num_images, num_snapshots):
         run_projector.project_image(proj, targets=images, png_prefix=dnnlib.make_run_dir_path('projection/out/image%04d-' % image_idx), num_snapshots=num_snapshots)
 
 project_real_images("records","./projection",1,100)
-
 
 
 # Create video 
@@ -286,3 +289,26 @@ with imageio.get_writer(movieName, mode='I') as writer:
         canvas.paste(Image.fromarray(image), (0, 0))
 
         writer.append_data(np.array(canvas))
+
+
+import tensorflow as tf
+import lucid.optvis.render as render
+import lucid.optvis.objectives as objectives
+import lucid.optvis.param as param
+
+from lucid.modelzoo.vision_base import Model
+
+MODEL_PATH = '200.pb'
+
+class FrozenNetwork(Model):
+    model_path = MODEL_PATH
+    image_shape = [256, 256, 3]
+    image_value_range = (0, 1)
+    input_name = 'input_1'
+
+network = FrozenNetwork()
+network.load_graphdef()
+
+obj = objectives.channel(layer_name, neuron_index)
+param_f = lambda: param.image(512, fft=True, decorrelate=True)
+renders = render.render_vis(network, obj, param_f, thresholds=(2024,))
