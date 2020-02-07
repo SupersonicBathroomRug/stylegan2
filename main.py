@@ -317,3 +317,15 @@ network.load_graphdef()
 obj = objectives.channel(layer_name, neuron_index)
 param_f = lambda: param.image(512, fft=True, decorrelate=True)
 renders = render.render_vis(network, obj, param_f, thresholds=(2024,))
+
+
+last_image_file = sorted(glob.glob("projection/out/*step*.png"))[-1]
+stylegan_render = imageio.imread(last_image_file)
+lucid_render = renders[0][0]
+lucid_render = (np.clip(lucid_render, 0, 1) * 255).astype(np.uint8)
+
+h, w = lucid_render.shape[:2]
+canvas = PIL.Image.new('RGB', (w * 2, h), 'white')
+canvas.paste(Image.fromarray(lucid_render), (0, 0))
+canvas.paste(Image.fromarray(stylegan_render).resize((w, h), PIL.Image.LANCZOS), (w, 0))
+canvas.save("projection/combined_%s_%03d.png" % (layer_name.split("/")[0], neuron_index))
