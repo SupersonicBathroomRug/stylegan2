@@ -108,7 +108,7 @@ def get_plugin(cuda_file):
                 print('Preprocessing... ', end='', flush=True)
             with tempfile.TemporaryDirectory() as tmp_dir:
                 tmp_file = os.path.join(tmp_dir, cuda_file_name + '_tmp' + cuda_file_ext)
-                _run_cmd(_prepare_nvcc_cli('"%s" --preprocess -o "%s" --keep --keep-dir "%s"' % (cuda_file, tmp_file, tmp_dir)))
+                _run_cmd(_prepare_nvcc_cli('"%s" -std=c++11 -DNDEBUG --preprocess -o "%s" --keep --keep-dir "%s"' % (cuda_file, tmp_file, tmp_dir)))
                 with open(tmp_file, 'rb') as f:
                     bad_file_str = ('"' + cuda_file.replace('\\', '/') + '"').encode('utf-8') # __FILE__ in error check macros
                     good_file_str = ('"' + cuda_file_base + '"').encode('utf-8')

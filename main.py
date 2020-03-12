@@ -174,60 +174,7 @@ def interpolate(zs, steps):
 
 # Taken from https://github.com/alexanderkuk/log-progress
 def log_progress(sequence, every=1, size=None, name='Items'):
-    from ipywidgets import IntProgress, HTML, VBox
-    from IPython.display import display
-
-    is_iterator = False
-    if size is None:
-        try:
-            size = len(sequence)
-        except TypeError:
-            is_iterator = True
-    if size is not None:
-        if every is None:
-            if size <= 200:
-                every = 1
-            else:
-                every = int(size / 200)     # every 0.5%
-    else:
-        assert every is not None, 'sequence is iterator, set every'
-
-    if is_iterator:
-        progress = IntProgress(min=0, max=1, value=1)
-        progress.bar_style = 'info'
-    else:
-        progress = IntProgress(min=0, max=size, value=0)
-    label = HTML()
-    box = VBox(children=[label, progress])
-    display(box)
-
-    index = 0
-    try:
-        for index, record in enumerate(sequence, 1):
-            if index == 1 or index % every == 0:
-                if is_iterator:
-                    label.value = '{name}: {index} / ?'.format(
-                        name=name,
-                        index=index
-                    )
-                else:
-                    progress.value = index
-                    label.value = u'{name}: {index} / {size}'.format(
-                        name=name,
-                        index=index,
-                        size=size
-                    )
-            yield record
-    except:
-        progress.bar_style = 'danger'
-        raise
-    else:
-        progress.bar_style = 'success'
-        progress.value = index
-        label.value = "{name}: {index}".format(
-            name=name,
-            index=str(index or '?')
-        )
+    print()
 
 
 # Convert uploaded images to TFRecords
@@ -272,11 +219,18 @@ def dream_project(Gs, network_protobuf_path, layer_name, neuron_index, png_prefi
 
 # project_real_images("records","./projection", 1, 100)
 
-network_protobuf_path = "200.pb"
-layer_name, neuron_index = "Mixed_5c_Branch_3_b_1x1_act/Relu", 16
+# network_protobuf_path = "200.pb"
+# layer_name, neuron_index = "Mixed_5c_Branch_3_b_1x1_act/Relu", 16
+
+network_protobuf_path, layer_name, neuron_index = sys.argv[1:]
+fancy_layer_name = layer_name.replace("_act/Relu", "")
+neuron_index = int(neuron_index)
 
 dream_project(Gs, network_protobuf_path, layer_name, neuron_index, png_prefix='projection/out/image-', num_snapshots=100)
 
+# TODO 300 hardwired already in dream_projector
+import shutil
+shutil.copyfile('projection/out/image-step%04d.png' % 300, "projection/%s-%03d.png" % (fancy_layer_name, neuron_index))
 
 # Create video 
 
@@ -284,9 +238,9 @@ import glob
 
 imgs = sorted(glob.glob("projection/out/*step*.png"))
 
-movieName = "projection/movie.mp4"
+movieName = "projection/%s-%03d.mp4" % (fancy_layer_name, neuron_index)
 with imageio.get_writer(movieName, mode='I') as writer:
-    for filename in log_progress(imgs, name = "Creating animation"):
+    for filename in imgs:
         image = imageio.imread(filename)
 
         # Concatenate images with original target image

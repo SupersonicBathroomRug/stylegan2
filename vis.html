@@ -1,0 +1,78 @@
+
+<!doctype html >
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+
+<p/>
+<lu>
+<li>Each image pair corresponds to a channel of an extended InceptionV1 network's 5c_Branch_3_b_1x1 layer.</li>
+<li>The network was trained on the CelebA classification task.</li>
+<li>Left images are maximizing the given channel's mean activation in pixel space.</li>
+<li>Right images are maximizing the mean activation among StyleGAN2 outputs.</li>
+<li>Click on the StyleGAN2 images for optimization progress videos.</li>
+<li>The slider is a crude version of infinite scrolling, to avoid downloading all images at once.</li>
+</lu>
+<p/>
+
+<input type="range" min="0" max="1000" value="0" class="slider" id="neuron" oninput="recalc()" /> neuron
+<br/>
+
+
+
+<div class="outer"><output id="demo" /></div>
+
+<script>
+    let neurons_to_show = 12;
+    let layer_size = 128;
+    let neuron_slider = document.getElementById("neuron");
+    neuron_slider.max = layer_size - neurons_to_show;
+    let output = document.getElementById("demo");
+
+    function pad (str, max) {
+        str = str.toString();
+        return str.length < max ? pad("0" + str, max) : str;
+    }
+
+    var recalc = function() {
+        let neuron_index = parseInt(neuron_slider.value);
+
+        var to_url = function(indx, version) {
+            if (version=="stylegan2") {
+                return "https://users.renyi.hu/~daniel/tmp/lucid-stylegan2-full/Mixed_5c_Branch_3_b_1x1-" + pad(indx, 3) + ".png"
+            } else {
+                return "https://users.renyi.hu/~daniel/tmp/lucid/catalogs/celeba_neuron_catalog_51-57/Mixed_5c_Branch_3_b_1x1_act-Relu/Mixed_5c_Branch_3_b_1x1_act-Relu_" + indx + "_googlenet_finetuned.pb.png"
+            }
+        }
+
+        var to_img = function(indx, version) {
+            if (version=="stylegan2") {
+                let url = to_url(indx, version);
+                return "<a href=\"" + url.replace(".png", ".mp4") + "\"><img width=\"256px\" src=\"" + url + "\"></a>";
+            }
+            else {
+                return "<img width=\"256px\" src=\"" + to_url(indx, version) + "\">";
+            }
+        }
+
+        var to_img_pair = function(indx) {
+            return "<span style=\" white-space: nowrap; padding-right: 5px \">" + to_img(indx, "lucid") + to_img(indx, "stylegan2") + "</span>";
+        }
+
+        var grid = function(indx) {
+            let html = ""
+            for (var i = indx; i < indx + neurons_to_show; i++) {
+                html += to_img_pair(i);
+            }
+            return html;
+        }
+
+        output.innerHTML = 
+            "neurons: " + neuron_index + " - " + (neuron_index + neurons_to_show - 1) + " / " + layer_size + "<p/>\n";
+        output.innerHTML += grid(neuron_index);
+    }
+
+    recalc();
+</script>
+</body>
+</html>
