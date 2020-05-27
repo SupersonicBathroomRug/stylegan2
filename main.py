@@ -18,7 +18,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--network_protobuf_path", type=str)
 parser.add_argument("--layer_name", type=str)
 parser.add_argument("--neuron_index", type=int)
-parser.add_argument("--weight_editor", help='invert_top, invert_one, zero_top, zero_one, prune', type=str)
+parser.add_argument("--weight_editor", help='invert_top, invert_one, prune_top, prune_one', type=str)
 parser.add_argument("--weight_edit_param", help='parameter of weight editor', type=int)
 
 FLAGS = parser.parse_args()
@@ -268,33 +268,26 @@ w = params[kernel_name]
 print(w.shape)
 neuron = w[..., neuron_index]
 
-#print(np.histogram(neuron.flatten(), bins=10))
+print(np.histogram(neuron.flatten(), bins=10))
 
 p = weight_edit_param
 
-if weight_editor == "invert_simple":
-    neuron *= (1 - p * (neuron > 0.07).astype(float))
-
-elif weight_editor == "invert_top":
-    neuron *= (1 - 2 * (neuron > np.sort(neuron, axis=None)[-int(p)]).astype(float))
-
-elif weight_editor == "zero_top":
-    threshold = np.sort(neuron, axis=None)[-int(p)]
-    neuron = np.where(neuron >= threshold, 0, neuron)
+if weight_editor == "invert_top":
+    neuron *= (1 - 2 * (neuron >= np.sort(neuron, axis=None)[-p]).astype(float))
 
 elif weight_editor == "invert_one":
-    neuron *= (1 - 2 * (neuron == np.sort(neuron, axis=None)[-int(p)]).astype(float))
+    neuron *= (1 - 2 * (neuron == np.sort(neuron, axis=None)[-p]).astype(float))
 
-elif weight_editor == "zero_one":
-    neuron = np.where(neuron == np.sort(neuron, axis=None)[-int(p)], 0, neuron)
+elif weight_editor == "prune_top":
+    neuron -= neuron * (neuron >= np.sort(neuron, axis=None)[-p]).astype(float)
 
-elif weight_editor == "prune":
-    neuron -= neuron * (neuron > 0.085).astype(float)
+elif weight_editor == "prune_one":
+    neuron -= neuron * (neuron == np.sort(neuron, axis=None)[-p]).astype(float)
 
 else: print("no weight edit was made - invalid editor name")
 
 w[..., neuron_index] = neuron
-#print(np.histogram(w[..., neuron_index].flatten(), bins=10))
+print(np.histogram(w[..., neuron_index].flatten(), bins=10))
 
 params[kernel_name] = w
 
