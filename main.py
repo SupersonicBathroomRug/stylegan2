@@ -14,6 +14,26 @@ import imageio
 
 import pretrained_networks
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--network_protobuf_path", type=str)
+parser.add_argument("--layer_name", type=str)
+parser.add_argument("--neuron_index", type=int)
+parser.add_argument("--weight_editor", help='invert_top, invert_one, zero_top, zero_one, prune', type=str)
+parser.add_argument("--weight_edit_param", help='parameter of weight editor', type=int)
+
+FLAGS = parser.parse_args()
+
+network_protobuf_path = FLAGS.network_protobuf_path
+layer_name = FLAGS.layer_name
+fancy_layer_name = layer_name.replace("_act/Relu", "")
+neuron_index = FLAGS.neuron_index
+weight_editor = FLAGS.weight_editor
+weight_edit_param = FLAGS.weight_edit_param
+
+
+print(network_protobuf_path, layer_name, neuron_index, weight_editor, weight_edit_param)
+
+
 # Choose between these pretrained models - I think 'f' is the best choice:
 
 # 1024×1024 faces
@@ -176,6 +196,112 @@ def interpolate(zs, steps):
 def log_progress(sequence, every=1, size=None, name='Items'):
     print()
 
+# Circuit editing
+
+class ParameterEditor():
+  """Conveniently edit the parameters of a lucid model.
+  Example usage:
+    model = models.InceptionV1()
+    param = ParameterEditor(model.graph_def)
+    # Flip weights of first channel of conv2d0
+    param["conv2d0_w", :, :, :, 0] *= -1
+  """
+
+  def __init__(self, graph_def):
+    self.nodes = {}
+    for node in graph_def.node:
+      if "value" in node.attr:
+        self.nodes[str(node.name)] = node
+    # Set a flag to mark the fact that this is an edited model
+    '''
+    if not "lucid_is_edited" in self.nodes:
+      with tf.Graph().as_default() as temp_graph:
+        const = tf.constant(True, name="lucid_is_edited")
+        const_node = temp_graph.as_graph_def().node[0]
+        graph_def.node.extend([const_node])
+    '''
+
+
+  def __getitem__(self, key):
+    name = key[0] if isinstance(key, tuple) else key
+    tensor = self.nodes[name].attr["value"].tensor
+    shape = [int(d.size) for d in tensor.tensor_shape.dim]
+    array = np.frombuffer(tensor.tensor_content, dtype="float32").reshape(shape).copy()
+    return array[key[1:]] if isinstance(key, tuple) else array
+
+  def __setitem__(self, key, new_value):
+    name = key[0] if isinstance(key, tuple) else key
+    tensor = self.nodes[name].attr["value"].tensor
+    node_shape = [int(d.size) for d in tensor.tensor_shape.dim]
+    if isinstance(key, tuple):
+      array = np.frombuffer(tensor.tensor_content, dtype="float32")
+      array = array.reshape(node_shape).copy()
+      array[key[1:]] = new_value
+      tensor.tensor_content = array.tostring()
+    else:
+      assert new_value.shape == tuple(node_shape), "mismatch: new_value.shape %s != node_shape %s" % (str(new_value.shape), str((node_shape)))
+      tensor.tensor_content = new_value.tostring()
+
+
+import tensorflow as tf
+import lucid.optvis.render as render
+import lucid.optvis.objectives as objectives
+import lucid.optvis.param as param
+
+from lucid.modelzoo.vision_base import Model
+
+
+class FrozenNetwork(Model):
+    model_path = network_protobuf_path
+    image_shape = [256, 256, 3]
+    image_value_range = (0, 1)
+    input_name = 'input_1'
+
+network = FrozenNetwork()
+network.load_graphdef()
+
+params = ParameterEditor(network.graph_def)
+
+kernel_name = 'Mixed_5c_Branch_3_b_1x1_conv/kernel'
+
+w = params[kernel_name]
+print(w.shape)
+neuron = w[..., neuron_index]
+
+#print(np.histogram(neuron.flatten(), bins=10))
+
+p = weight_edit_param
+
+if weight_editor == "invert_simple":
+    neuron *= (1 - p * (neuron > 0.07).astype(float))
+
+elif weight_editor == "invert_top":
+    neuron *= (1 - 2 * (neuron > np.sort(neuron, axis=None)[-int(p)]).astype(float))
+
+elif weight_editor == "zero_top":
+    threshold = np.sort(neuron, axis=None)[-int(p)]
+    neuron = np.where(neuron >= threshold, 0, neuron)
+
+elif weight_editor == "invert_one":
+    neuron *= (1 - 2 * (neuron == np.sort(neuron, axis=None)[-int(p)]).astype(float))
+
+elif weight_editor == "zero_one":
+    neuron = np.where(neuron == np.sort(neuron, axis=None)[-int(p)], 0, neuron)
+
+elif weight_editor == "prune":
+    neuron -= neuron * (neuron > 0.085).astype(float)
+
+else: print("no weight edit was made - invalid editor name")
+
+w[..., neuron_index] = neuron
+#print(np.histogram(w[..., neuron_index].flatten(), bins=10))
+
+params[kernel_name] = w
+
+obj = objectives.channel(layer_name, neuron_index)
+param_f = lambda: param.image(256, fft=True, decorrelate=True)
+renders = render.render_vis(network, obj, param_f, thresholds=(2024,))
+
 
 # Convert uploaded images to TFRecords
 import dataset_tool
@@ -211,22 +337,15 @@ def project_real_images(dataset_name, data_dir, num_images, num_snapshots):
         run_projector.project_image(proj, targets=images, png_prefix=dnnlib.make_run_dir_path('projection/out/image%04d-' % image_idx), num_snapshots=num_snapshots)
 
 
-def dream_project(Gs, network_protobuf_path, layer_name, neuron_index, png_prefix, num_snapshots):
+def dream_project(Gs, network, layer_name, neuron_index, png_prefix, num_snapshots):
     proj = dream_projector.DreamProjector()
-    proj.set_network(Gs, network_protobuf_path, layer_name, neuron_index)
+    proj.set_network(Gs, network, layer_name, neuron_index)
     run_projector.dream_project(proj, png_prefix, num_snapshots)
 
 
 # project_real_images("records","./projection", 1, 100)
 
-# network_protobuf_path = "200.pb"
-# layer_name, neuron_index = "Mixed_5c_Branch_3_b_1x1_act/Relu", 16
-
-network_protobuf_path, layer_name, neuron_index = sys.argv[1:]
-fancy_layer_name = layer_name.replace("_act/Relu", "")
-neuron_index = int(neuron_index)
-
-dream_project(Gs, network_protobuf_path, layer_name, neuron_index, png_prefix='projection/out/image-', num_snapshots=100)
+dream_project(Gs, network, layer_name, neuron_index, png_prefix='projection/out/image-', num_snapshots=100)
 
 # TODO 300 hardwired already in dream_projector
 import shutil
@@ -257,21 +376,6 @@ import lucid.optvis.objectives as objectives
 import lucid.optvis.param as param
 
 from lucid.modelzoo.vision_base import Model
-
-
-class FrozenNetwork(Model):
-    model_path = network_protobuf_path
-    image_shape = [256, 256, 3]
-    image_value_range = (0, 1)
-    input_name = 'input_1'
-
-network = FrozenNetwork()
-network.load_graphdef()
-
-obj = objectives.channel(layer_name, neuron_index)
-param_f = lambda: param.image(512, fft=True, decorrelate=True)
-renders = render.render_vis(network, obj, param_f, thresholds=(2024,))
-
 
 last_image_file = sorted(glob.glob("projection/out/*step*.png"))[-1]
 stylegan_render = imageio.imread(last_image_file)

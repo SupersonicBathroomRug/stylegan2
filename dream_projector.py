@@ -50,7 +50,7 @@ class DreamProjector:
         if self.verbose:
             print('Projector:', *args)
 
-    def set_network(self, Gs, network_protobuf_path, layer_name, neuron_index):
+    def set_network(self, Gs, network, layer_name, neuron_index):
         self._minibatch_size = 1
         self._Gs = Gs
         if self._Gs is None:
@@ -106,14 +106,14 @@ class DreamProjector:
         if self._celeba_classifier is None:
             from lucid.modelzoo.vision_base import Model
 
-            class FrozenNetwork(Model):
-                model_path = network_protobuf_path
-                image_shape = [256, 256, 3]
-                image_value_range = (0, 1)
-                input_name = 'input_1'
+            #class FrozenNetwork(Model):
+            #    model_path = network_protobuf_path
+            #    image_shape = [256, 256, 3]
+            #    image_value_range = (0, 1)
+            #    input_name = 'input_1'
 
-            network = FrozenNetwork()
-            network.load_graphdef()
+            #network = FrozenNetwork()
+            # network.load_graphdef()
             # proc_images_expr.shape = (1, 3, 256, 256), range = (0, 255)
             # input_image.shape = (1, 256, 256, 3), range = (0, 1)
             input_image = tf.transpose(proc_images_expr, perm=(0, 2, 3, 1)) / 255
