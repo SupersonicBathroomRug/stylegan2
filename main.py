@@ -33,7 +33,6 @@ weight_edit_param = FLAGS.weight_edit_param
 
 print(network_protobuf_path, layer_name, neuron_index, weight_editor, weight_edit_param)
 
-
 # Choose between these pretrained models - I think 'f' is the best choice:
 
 # 1024×1024 faces
@@ -267,27 +266,22 @@ kernel_name = 'Mixed_5c_Branch_3_b_1x1_conv/kernel'
 w = params[kernel_name]
 print(w.shape)
 neuron = w[..., neuron_index]
-
-print(np.histogram(neuron.flatten(), bins=10))
+#print(np.histogram(neuron.flatten(), bins=10))
 
 p = weight_edit_param
 
 if weight_editor == "invert_top":
     neuron *= (1 - 2 * (neuron >= np.sort(neuron, axis=None)[-p]).astype(float))
-
 elif weight_editor == "invert_one":
     neuron *= (1 - 2 * (neuron == np.sort(neuron, axis=None)[-p]).astype(float))
-
 elif weight_editor == "prune_top":
     neuron -= neuron * (neuron >= np.sort(neuron, axis=None)[-p]).astype(float)
-
 elif weight_editor == "prune_one":
     neuron -= neuron * (neuron == np.sort(neuron, axis=None)[-p]).astype(float)
-
 else: print("no weight edit was made - invalid editor name")
 
 w[..., neuron_index] = neuron
-print(np.histogram(w[..., neuron_index].flatten(), bins=10))
+#print(np.histogram(w[..., neuron_index].flatten(), bins=10))
 
 params[kernel_name] = w
 
