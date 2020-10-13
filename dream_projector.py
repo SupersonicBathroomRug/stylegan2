@@ -19,6 +19,7 @@ class DreamProjector:
         self.dlatent_avg_samples        = 10000
         self.initial_learning_rate      = 0.01 # was 0.1
         self.initial_noise_factor       = 0.05
+        self.initial_noise_strength     =0.1
         self.lr_rampdown_length         = 0.25
         self.lr_rampup_length           = 0.05
         self.noise_ramp_length          = 0.75
@@ -170,7 +171,7 @@ class DreamProjector:
 
         # Initialize optimization state.
         self._info('Initializing optimization state...')
-        tflib.set_vars({self._dlatents_var: np.tile(self._dlatent_avg, [self._minibatch_size, 1, 1])})
+        tflib.set_vars({self._dlatents_var: (np.tile(self._dlatent_avg, [self._minibatch_size, 1, 1])+tf.random.normal([self._minibatch_size,1,1,512],0,1,tf.float32)*np.tile(self._dlatent_std, [self._minibatch_size,1,1])*self.initial_noise_strength)})
         tflib.run(self._noise_init_op)
         self._opt.reset_optimizer_state()
         self._cur_step = 0
