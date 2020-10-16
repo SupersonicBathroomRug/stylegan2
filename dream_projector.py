@@ -171,7 +171,7 @@ class DreamProjector:
 
         # Initialize optimization state.
         self._info('Initializing optimization state...')
-        tflib.set_vars({self._dlatents_var: (np.tile(self._dlatent_avg, [self._minibatch_size, 1, 1])+tf.random.normal([self._minibatch_size,1,1,512],0,1,tf.float32)*np.tile(self._dlatent_std, [self._minibatch_size,1,1])*self.initial_noise_strength)})
+        tflib.set_vars({self._dlatents_var: (np.tile(self._dlatent_avg, [self._minibatch_size, 1, 1])+tf.random.normal([self._minibatch_size,1,1,512],0,1,tf.float32).numpy()*np.tile(self._dlatent_std, [self._minibatch_size,1,1])*self.initial_noise_strength)})
         tflib.run(self._noise_init_op)
         self._opt.reset_optimizer_state()
         self._cur_step = 0
