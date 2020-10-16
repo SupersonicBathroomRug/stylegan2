@@ -18,8 +18,11 @@ from training import misc
 
 #----------------------------------------------------------------------------
 
-def project_image(proj, targets, png_prefix, num_snapshots):
+def project_image(proj, targets, png_prefix, num_snapshots,onlyfirstandlast=false):
+    
     snapshot_steps = set(proj.num_steps - np.linspace(0, proj.num_steps, num_snapshots, endpoint=False, dtype=int))
+    if onlyfirstandlast:
+        snapshot_steps={1,300}
     misc.save_image_grid(targets, png_prefix + 'target.png', drange=[-1,1])
     proj.start(targets)
     while proj.get_cur_step() < proj.num_steps:
@@ -31,8 +34,10 @@ def project_image(proj, targets, png_prefix, num_snapshots):
 
 #----------------------------------------------------------------------------
 
-def dream_project(proj, png_prefix, num_snapshots):
+def dream_project(proj, png_prefix, num_snapshots,onlyfirstandlast=false):
     snapshot_steps = set(proj.num_steps - np.linspace(0, proj.num_steps, num_snapshots, endpoint=False, dtype=int))
+    if onlyfirstandlast:
+        snapshot_steps={1,300}
     proj.start()
     while proj.get_cur_step() < proj.num_steps:
         print('\r%d / %d ... ' % (proj.get_cur_step(), proj.num_steps), end='', flush=True)
