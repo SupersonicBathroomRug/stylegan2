@@ -18,7 +18,7 @@ from training import misc
 
 #----------------------------------------------------------------------------
 
-def project_image(proj, targets, png_prefix, num_snapshots,onlyfirstandlast=false):
+def project_image(proj, targets, png_prefix, num_snapshots,onlyfirstandlast=False):
     
     snapshot_steps = set(proj.num_steps - np.linspace(0, proj.num_steps, num_snapshots, endpoint=False, dtype=int))
     if onlyfirstandlast:
@@ -34,7 +34,7 @@ def project_image(proj, targets, png_prefix, num_snapshots,onlyfirstandlast=fals
 
 #----------------------------------------------------------------------------
 
-def dream_project(proj, png_prefix, num_snapshots,onlyfirstandlast=false):
+def dream_project(proj, png_prefix, num_snapshots,onlyfirstandlast=False):
     snapshot_steps = set(proj.num_steps - np.linspace(0, proj.num_steps, num_snapshots, endpoint=False, dtype=int))
     if onlyfirstandlast:
         snapshot_steps={1,300}
