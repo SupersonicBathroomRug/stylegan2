@@ -19,7 +19,7 @@ class DreamProjector:
         self.dlatent_avg_samples        = 10000
         self.initial_learning_rate      = 0.01 # was 0.1
         self.initial_noise_factor       = 0.05
-        self.initial_noise_strength     =0.01
+        self.initial_noise_strength     =0.05
         self.lr_rampdown_length         = 0.25
         self.lr_rampup_length           = 0.05
         self.noise_ramp_length          = 0.75
