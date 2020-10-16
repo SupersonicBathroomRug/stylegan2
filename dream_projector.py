@@ -50,6 +50,9 @@ class DreamProjector:
     def _info(self, *args):
         if self.verbose:
             print('Projector:', *args)
+    
+    def set_noise_strength(self,noisestrength):
+      self.initial_noise_strength=noisestrength
 
     def set_network(self, Gs, network_protobuf_path, layer_name, neuron_index):
         self._minibatch_size = 1
